@@ -12,7 +12,8 @@ namespace Hooks
 			REL::Relocation<uintptr_t> hook{ RELOCATION_ID(35565, 36564) };  // 5B2FF0, 5D9F50, main update
 
 			auto& trampoline = SKSE::GetTrampoline();
-			_Nullsub = trampoline.write_call<5>(hook.address() + RELOCATION_OFFSET(0x748, 0xC26), Nullsub);  // 5B3738, 5DAB76
+			auto NullsubAEOffset = REL::Module::IsAtLeast(SKSE::RUNTIME_SSE_1_7_99) ? 0xC38 : 0xC26;
+			_Nullsub = trampoline.write_call<5>(hook.address() + RELOCATION_OFFSET(0x748, NullsubAEOffset), Nullsub);  // 5B3738, 5DAB76
 		}
 
 	private:
@@ -58,7 +59,8 @@ namespace Hooks
 
 			REL::Relocation<std::uintptr_t> SneakHandlerVtbl{ RE::VTABLE_SneakHandler[0] };
 			//_CanProcess = SneakHandlerVtbl.write_vfunc(0x1, CanProcess);
-			_ProcessButton = SneakHandlerVtbl.write_vfunc(0x4, ProcessButton);
+			auto vtblShift = REL::Module::IsAtLeast(SKSE::RUNTIME_SSE_1_7_99) ? 2 : 0;
+			_ProcessButton = SneakHandlerVtbl.write_vfunc(0x4 + vtblShift, ProcessButton);
 		}
 
 	private:

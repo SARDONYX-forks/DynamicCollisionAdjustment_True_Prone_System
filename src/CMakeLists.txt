@@ -1,23 +1,11 @@
 set(ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
 set(SOURCE_DIR "${ROOT_DIR}/src")
-set(SOURCE_FILES
-	"${SOURCE_DIR}/AdjustmentHandler.cpp"
-	"${SOURCE_DIR}/AdjustmentHandler.h"
-	"${SOURCE_DIR}/Havok.cpp"
-	"${SOURCE_DIR}/Havok.h"
-	"${SOURCE_DIR}/Hooks.cpp"
-	"${SOURCE_DIR}/Hooks.h"
-	"${SOURCE_DIR}/main.cpp"
-	"${SOURCE_DIR}/Offsets.h"
-	"${SOURCE_DIR}/Papyrus.cpp"
-	"${SOURCE_DIR}/Papyrus.h"
-	"${SOURCE_DIR}/PCH.h"
-	"${SOURCE_DIR}/Settings.cpp"
-	"${SOURCE_DIR}/Settings.h"
-	"${SOURCE_DIR}/TrueHUDAPI.h"
-	"${SOURCE_DIR}/Utils.cpp"
-	"${SOURCE_DIR}/Utils.h"
+file(
+	GLOB_RECURSE SOURCE_FILES
+	CONFIGURE_DEPENDS
+		"${SOURCE_DIR}/*.cpp"
+		"${SOURCE_DIR}/*.h"
 )
 
 source_group(TREE "${ROOT_DIR}" FILES ${SOURCE_FILES})
@@ -53,6 +41,12 @@ target_compile_features(
 		cxx_std_20
 )
 
+target_compile_definitions(
+	"${PROJECT_NAME}"
+	PRIVATE
+		NOMINMAX
+)
+
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	target_compile_options(
 		"${PROJECT_NAME}"
@@ -60,8 +54,6 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 			"/sdl"	# Enable Additional Security Checks
 			"/utf-8"	# Set Source and Executable character sets to UTF-8
 #			"/Zi"	# Debug Information Format
-
-			"/await"
 
 			"/permissive-"	# Standards conformance
 			"/Zc:preprocessor"	# Enable preprocessor conformance mode
@@ -89,7 +81,7 @@ target_include_directories(
 
 set(SKSE_SUPPORT_XBYAK ON)
 
-add_subdirectory("$ENV{CommonLibSSEPath_NG}" CommonLibSSE EXCLUDE_FROM_ALL)
+add_subdirectory("$ENV{CommonLibSSEPath}" CommonLibSSE EXCLUDE_FROM_ALL)
 
 find_package(xbyak REQUIRED CONFIG)
 

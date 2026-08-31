@@ -64,10 +64,10 @@ bool AdjustmentHandler::CheckEnoughSpaceToStand(RE::ActorHandle a_actorHandle)
 	RE::hkpWorldRayCastInput raycastInput;
 	RE::hkpWorldRayCastOutput raycastOutput;
 	
-	uint32_t collisionFilterInfo = 0;
+	RE::CFilter collisionFilterInfo{};
 	actor->GetCollisionFilterInfo(collisionFilterInfo);
-	uint16_t collisionGroup = collisionFilterInfo >> 16;
-	raycastInput.filterInfo = (static_cast<uint32_t>(collisionGroup) << 16) | static_cast<uint32_t>(RE::COL_LAYER::kCharController);
+	uint16_t collisionGroup = collisionFilterInfo.filter >> 16;
+	raycastInput.filterInfo.filter = (static_cast<uint32_t>(collisionGroup) << 16) | static_cast<uint32_t>(RE::COL_LAYER::kCharController);
 	raycastInput.from = raycastStart;
 	raycastInput.to = raycastEnd;
 	
@@ -138,7 +138,7 @@ bool AdjustmentHandler::GetShapes(RE::bhkCharacterController* a_charController, 
 			return a_outCollisionConvexVerticesShape || !a_outCollisionCapsules.empty();
 		}
 	} else if (auto rigidBodyController = skyrim_cast<RE::bhkCharRigidBodyController*>(a_charController)) {
-		if (auto rigidBody = static_cast<RE::hkpCharacterRigidBody*>(rigidBodyController->rigidBody.referencedObject.get())) {
+		if (auto rigidBody = static_cast<RE::hkpCharacterRigidBody*>(rigidBodyController->charRigidBody.referencedObject.get())) {
 			
 			readShape(readShape, rigidBody->character->collidable.shape);
 
@@ -159,7 +159,7 @@ bool AdjustmentHandler::GetConvexShape(RE::bhkCharacterController* a_charControl
 			return a_outListShape && a_outCollisionConvexVerticesShape;
 		}
 	} else if (auto rigidBodyController = skyrim_cast<RE::bhkCharRigidBodyController*>(a_charController)) {
-		a_outRigidBody = static_cast<RE::hkpCharacterRigidBody*>(rigidBodyController->rigidBody.referencedObject.get());
+		a_outRigidBody = static_cast<RE::hkpCharacterRigidBody*>(rigidBodyController->charRigidBody.referencedObject.get());
 		if (a_outRigidBody) {
 			a_outListShape = skyrim_cast<RE::hkpListShape*>(const_cast<RE::hkpShape*>(a_outRigidBody->character->collidable.shape));
 			a_outCollisionConvexVerticesShape = skyrim_cast<RE::hkpConvexVerticesShape*>(const_cast<RE::hkpShape*>(a_outListShape ? a_outListShape->childInfo[0].shape : a_outRigidBody->character->collidable.shape));
@@ -279,7 +279,7 @@ void AdjustmentHandler::ControllerData::AdjustScale()
 					}
 				}
 			} else if (auto rigidBodyController = skyrim_cast<RE::bhkCharRigidBodyController*>(controller)) {
-				RE::hkRefPtr<RE::hkpCharacterRigidBody> rigidBody(static_cast<RE::hkpCharacterRigidBody*>(rigidBodyController->rigidBody.referencedObject.get()));
+				RE::hkRefPtr<RE::hkpCharacterRigidBody> rigidBody(static_cast<RE::hkpCharacterRigidBody*>(rigidBodyController->charRigidBody.referencedObject.get()));
 				if (rigidBody) {
 					RE::NiPointer<RE::bhkShape> wrapper(rigidBody->character->collidable.shape->userData);
 					if (wrapper) {
@@ -365,7 +365,7 @@ void AdjustmentHandler::ControllerData::AdjustConvex()
 				}
 
 				RE::hkStridedVertices stridedVerts(newVerts.data(), static_cast<int>(newVerts.size()));
-				RE::hkpConvexVerticesShape::BuildConfig buildConfig{ false, false, true, 0.05f, 0, 0.f, 0.f, -0.1f };
+				RE::hkpConvexVerticesShapeBuildConfig buildConfig{ false, false, true, 0.05f, 0, 0.f, 0.f, -0.1f };
 
 				RE::hkpConvexVerticesShape* newShape = reinterpret_cast<RE::hkpConvexVerticesShape*>(hkHeapAlloc(sizeof(RE::hkpConvexVerticesShape)));
 				hkpConvexVerticesShape_ctor(newShape, stridedVerts, buildConfig);  // sets refcount to 1
@@ -510,7 +510,7 @@ void AdjustmentHandler::DrawVerts()
 						
 						uint32_t color = 0xFFFF00FF;
 						if (auto bhkShape = capsule->userData) {
-							if (bhkShape->materialID == RE::MATERIAL_ID::kDragonSkeleton) {  // mislabeled in clib, it's the character bumper material
+							if (bhkShape->materialID == RE::MATERIAL_ID::kCharacterBumper) {
 								if (!Settings::bDisplayCharacterBumper) {
 									continue;
 								}
@@ -581,9 +581,9 @@ bool AdjustmentHandler::CheckSkeletonForCollisionShapes(RE::NiAVObject* a_object
 					if (auto worldObject = static_cast<RE::hkpWorldObject*>(referencedObject.get())) {
 						if (auto collidable = worldObject->GetCollidable()) {
 							if (collidable->shape && collidable->shape->userData) {
-								auto layer = static_cast<RE::COL_LAYER>(collidable->broadPhaseHandle.collisionFilterInfo & 0x7F);
+								auto layer = collidable->broadPhaseHandle.collisionFilterInfo.GetCollisionLayer();
 								if (layer == RE::COL_LAYER::kCharController) {
-									if (collidable->shape->userData->materialID != RE::MATERIAL_ID::kDragonSkeleton) {  // not actually dragon skeleton, this is mislabeled in clib
+									if (collidable->shape->userData->materialID != RE::MATERIAL_ID::kCharacterBumper) {
 										return true;
 									}
 								}

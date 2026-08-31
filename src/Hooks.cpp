@@ -113,11 +113,15 @@ namespace Hooks
 		if (a_actor) {
 			if (auto loadedData = a_actor->loadedData) {
 				RE::NiAVObject* object = loadedData->data3D.get();
-				if (loadedData->unk60 && loadedData->unk58) {
-					if (auto pUnk58 = reinterpret_cast<Unk58**>(loadedData->unk58)) {
-						auto unk58 = *pUnk58;
-						if (unk58->CheckFlags()) {
-							object = unk58->object;
+				void* unk_58 = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(a_actor->loadedData) + 0x58);
+				void* unk_60 = *reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(a_actor->loadedData) + 0x60);
+				if (unk_60 && unk_58) {
+					if (auto pUnk58 = static_cast<Unk58**>(unk_58)) {
+						if (pUnk58) {
+							auto unk58 = *pUnk58;
+							if (unk58 && unk58->CheckFlags()) {
+								object = unk58->object;
+							}
 						}
 					}
 				}
