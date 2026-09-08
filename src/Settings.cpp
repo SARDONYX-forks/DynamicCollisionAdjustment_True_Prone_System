@@ -1,5 +1,6 @@
+#include <SimpleIni.h>
+
 #include "Settings.h"
-#include <Simpleini.h>
 
 void Settings::Initialize()
 {
@@ -16,19 +17,17 @@ void Settings::Initialize()
 
 void Settings::ReadSettings()
 {
-	constexpr auto path = L"Data/MCM/Settings/DynamicCollisionAdjustment.ini";
-
 	logger::info("Reading MCM .ini...");
 
 	CSimpleIniA mcm;
 	mcm.SetUnicode();
 
-	mcm.LoadFile(path);
+	mcm.LoadFile(Settings::FULL_FILE_PATH);
 
 	// General
 	ReadBoolSetting(mcm, "General", "bEnableActorScaleFix", bEnableActorScaleFix);
 	ReadBoolSetting(mcm, "General", "bEnableStateAdjustments", bEnableStateAdjustments);
-	
+
 	ReadFloatSetting(mcm, "General", "fSneakControllerCapsuleHeightMultiplier", fSneakControllerShapeHeightMultiplier);
 	ReadFloatSetting(mcm, "General", "fSwimmingControllerShapeHeightMultiplier", fSwimmingControllerShapeHeightMultiplier);
 	ReadFloatSetting(mcm, "General", "fSwimmingControllerShapeRadiusMultiplier", fSwimmingControllerShapeRadiusMultiplier);
@@ -38,6 +37,36 @@ void Settings::ReadSettings()
 	ReadBoolSetting(mcm, "Debug", "bDisplayCharacterBumper", bDisplayCharacterBumper);
 
 	logger::info("...success");
+}
+
+SI_Error Settings::WriteSettings()
+{
+	CSimpleIniA mcm;
+	mcm.SetUnicode();
+
+	mcm.SetBoolValue("General", "bEnableActorScaleFix", bEnableActorScaleFix);
+	mcm.SetBoolValue("General", "bEnableStateAdjustments", bEnableStateAdjustments);
+
+	mcm.SetDoubleValue("General", "fSneakControllerCapsuleHeightMultiplier", fSneakControllerShapeHeightMultiplier);
+	mcm.SetDoubleValue("General", "ffProneControllerShapeHeightMultiplier", fProneControllerShapeHeightMultiplier);
+	mcm.SetDoubleValue("General", "fSwimmingControllerShapeHeightMultiplier", fSwimmingControllerShapeHeightMultiplier);
+	mcm.SetDoubleValue("General", "fSwimmingControllerShapeRadiusMultiplier", fSwimmingControllerShapeRadiusMultiplier);
+
+	mcm.SetLongValue("Debug", "uDisplayDebugShapes", static_cast<long>(uDisplayDebugShapes));
+	mcm.SetBoolValue("Debug", "bDisplayCharacterBumper", bDisplayCharacterBumper);
+
+	std::error_code ec;
+	std::filesystem::create_directories(Settings::DIR, ec);
+	if (ec) {
+		logger::error("Failed to create settings directory: {}", ec.message());
+	}
+	const auto result = mcm.SaveFile(Settings::FULL_FILE_PATH);
+
+	if (result < 0) {
+		logger::error("Failed to save settings: {}", result);
+	}
+
+	return result;
 }
 
 void Settings::OnPostLoadGame()

@@ -46,11 +46,11 @@ bool AdjustmentHandler::CheckEnoughSpaceToStand(RE::ActorHandle a_actorHandle)
 	}
 
 	auto controllerData = GetControllerData(a_actorHandle);
-	
+
 	if (!controllerData) {
 		return true;
 	}
-	
+
 	if (controllerData->originalVerts.size() != 18) {
 		return true;
 	}
@@ -58,19 +58,36 @@ bool AdjustmentHandler::CheckEnoughSpaceToStand(RE::ActorHandle a_actorHandle)
 	RE::hkVector4 charControllerPos, raycastStart, raycastEnd;
 	charController->GetPosition(charControllerPos, false);
 
-	raycastStart = charControllerPos;
-	raycastEnd = raycastStart + ((controllerData->originalVerts[9] * 2.f) * controllerData->actorScale) + controllerData->originalVerts[8];
-	
+	// raycastStart = charControllerPos;
+	// raycastEnd = raycastStart + ((controllerData->originalVerts[9] * 2.f) * controllerData->actorScale) + controllerData->originalVerts[8];
+	auto playerCharacter = RE::PlayerCharacter::GetSingleton();
+	auto playerProne = false;
+	auto isProne = 0;
+	RE::BSAnimationGraphVariableCache* animationGraphCache = nullptr;
+	if (playerCharacter) {
+		animationGraphCache = playerCharacter->GetMiddleHighProcess()->animationVariableCache;
+	}
+	if (animationGraphCache) {
+		playerProne = animationGraphCache->GetAnimationGraph()->GetGraphVariableInt("IsCrawling", isProne);
+	}
+
+	raycastStart = charControllerPos - (controllerData->actorScale / 8);
+	if (isProne == 0) {
+		raycastEnd = raycastStart + ((controllerData->originalVerts[9] * 2.f) * controllerData->actorScale) + controllerData->originalVerts[8];
+	} else {
+		raycastEnd = raycastStart + ((controllerData->originalVerts[9] * 1.55f) * controllerData->actorScale) + controllerData->originalVerts[8];
+	}
+
 	RE::hkpWorldRayCastInput raycastInput;
 	RE::hkpWorldRayCastOutput raycastOutput;
-	
+
 	RE::CFilter collisionFilterInfo{};
 	actor->GetCollisionFilterInfo(collisionFilterInfo);
 	uint16_t collisionGroup = collisionFilterInfo.filter >> 16;
 	raycastInput.filterInfo.filter = (static_cast<uint32_t>(collisionGroup) << 16) | static_cast<uint32_t>(RE::COL_LAYER::kCharController);
 	raycastInput.from = raycastStart;
 	raycastInput.to = raycastEnd;
-	
+
 	{
 		RE::BSReadLockGuard lock(world->worldLock);
 		world->GetWorld1()->CastRay(raycastInput, raycastOutput);
@@ -84,6 +101,19 @@ bool AdjustmentHandler::CheckEnoughSpaceToStand(RE::ActorHandle a_actorHandle)
 	}
 
 	return true;
+}
+
+void AdjustmentHandler::UpdateProneState()
+{
+	auto player = RE::PlayerCharacter::GetSingleton();
+	if (!player) {
+		return;
+	}
+
+	auto controllerData = GetControllerData(player->GetHandle());
+	if (controllerData) {
+		controllerData->UpdateProneState();
+	}
 }
 
 bool AdjustmentHandler::GetShapes(RE::bhkCharacterController* a_charController, const RE::hkpConvexVerticesShape*& a_outCollisionConvexVerticesShape, std::vector<RE::hkpCapsuleShape*>& a_outCollisionCapsules)
@@ -129,17 +159,15 @@ bool AdjustmentHandler::GetShapes(RE::bhkCharacterController* a_charController, 
 
 		return false;
 	};
-	
+
 	if (auto proxyController = skyrim_cast<RE::bhkCharProxyController*>(a_charController)) {
 		if (auto charProxy = static_cast<RE::hkpCharacterProxy*>(proxyController->proxy.referencedObject.get())) {
-
 			readShape(readShape, charProxy->shapePhantom->collidable.shape);
 
 			return a_outCollisionConvexVerticesShape || !a_outCollisionCapsules.empty();
 		}
 	} else if (auto rigidBodyController = skyrim_cast<RE::bhkCharRigidBodyController*>(a_charController)) {
 		if (auto rigidBody = static_cast<RE::hkpCharacterRigidBody*>(rigidBodyController->charRigidBody.referencedObject.get())) {
-			
 			readShape(readShape, rigidBody->character->collidable.shape);
 
 			return a_outCollisionConvexVerticesShape || !a_outCollisionCapsules.empty();
@@ -182,14 +210,14 @@ std::shared_ptr<AdjustmentHandler::ControllerData> AdjustmentHandler::GetControl
 			}
 		}
 	}
-	
+
 	return nullptr;
 }
 
 std::shared_ptr<AdjustmentHandler::ControllerData> AdjustmentHandler::GetControllerData(RE::bhkCharacterController* a_charController)
 {
 	ReadLocker locker(controllersLock);
-	
+
 	auto search = _controllers.find(a_charController);
 	if (search != _controllers.end()) {
 		return search->second;
@@ -220,7 +248,7 @@ void AdjustmentHandler::ControllerData::Initialize()
 		bIsSneaking = actor->IsSneaking();
 
 		RE::BSWriteLockGuard lock(world->worldLock);
-		
+
 		// save convex shape values
 		if (GetConvexShape(controller, proxy, rigidBody, listShape, collisionConvexVerticesShape)) {
 			RE::hkArray<RE::hkVector4> verts{};
@@ -259,8 +287,8 @@ void AdjustmentHandler::ControllerData::AdjustScale()
 			int8_t shapeIdx = 1;
 			if (!controller->shapes[shapeIdx]) {
 				shapeIdx = 0;
-			} 
-			
+			}
+
 			if (!controller->shapes[shapeIdx]) {
 				return;
 			}
@@ -295,7 +323,7 @@ void AdjustmentHandler::ControllerData::AdjustScale()
 			*bumperEnabled = true;
 			Utils::ToggleCharacterBumper(actor.get(), false);
 		}
-	}	
+	}
 }
 
 // credit to https://github.com/adamhynek for controller shape adjustment code
@@ -319,12 +347,15 @@ void AdjustmentHandler::ControllerData::AdjustConvex()
 			}
 
 			float sneakMult = bIsSneaking && characterState == RE::hkpCharacterStateType::kOnGround ? Settings::fSneakControllerShapeHeightMultiplier : 1.f;
+			float proneMult = bIsProne ? Settings::fProneControllerShapeHeightMultiplier : 1.f;
+
 			float swimmingHeightMult = characterState == RE::hkpCharacterStateType::kSwimming ? Settings::fSwimmingControllerShapeHeightMultiplier : 1.f;
 			float swimmingRadiusMult = characterState == RE::hkpCharacterStateType::kSwimming ? Settings::fSwimmingControllerShapeRadiusMultiplier : 1.f;
-			float scaleMult = actorScale;
 
-			float heightMult = sneakMult * swimmingHeightMult * scaleMult;
+			float scaleMult = actorScale;
 			float radiusMult = scaleMult * swimmingRadiusMult;
+
+			float heightMult = bIsProne ? proneMult * swimmingHeightMult * scaleMult : sneakMult * swimmingHeightMult * scaleMult;
 
 			RE::BSWriteLockGuard lock(world->worldLock);
 
@@ -342,9 +373,9 @@ void AdjustmentHandler::ControllerData::AdjustConvex()
 					// Move the top ring
 					for (int i : { 1, 3, 4, 5, 7, 11, 13, 16 }) {  // top ring
 						if (heightMult < 1.f) {
-							newVerts[i].quad.m128_f32[2] = newVerts[i].quad.m128_f32[2] - distance;
+							Utils::SetVec4Z(newVerts[i], Utils::GetVec4Z(newVerts[i].quad) - distance);
 						} else {
-							newVerts[i].quad.m128_f32[2] = newVerts[i].quad.m128_f32[2] + distance;
+							Utils::SetVec4Z(newVerts[i], Utils::GetVec4Z(newVerts[i].quad) + distance);
 						}
 					}
 
@@ -399,7 +430,34 @@ void AdjustmentHandler::ControllerData::AdjustConvex()
 	}
 }
 
-void DrawLine(RE::hkVector4& a_start, RE::hkVector4& a_end, RE::NiPoint3& a_controllerPos) {
+void AdjustmentHandler::ControllerData::UpdateProneState()
+{
+	auto actor = actorHandle.get();
+	if (!actor) {
+		return;
+	}
+
+	auto process = actor->GetMiddleHighProcess();
+	if (!process || !process->animationVariableCache) {
+		return;
+	}
+
+	int currentProne = 0;
+	if (!process->animationVariableCache->GetAnimationGraph()->GetGraphVariableInt("IsCrawling", currentProne)) {
+		return;
+	}
+
+	bool newProneState = currentProne != 0;
+	if (bIsProne == newProneState) {
+		return;
+	}
+
+	bIsProne = newProneState;
+	AdjustConvex();
+}
+
+void DrawLine(RE::hkVector4& a_start, RE::hkVector4& a_end, RE::NiPoint3& a_controllerPos)
+{
 	RE::NiPoint3 a = Utils::HkVectorToNiPoint(a_start) * *g_worldScaleInverse;
 	RE::NiPoint3 b = Utils::HkVectorToNiPoint(a_end) * *g_worldScaleInverse;
 	a += a_controllerPos;
@@ -442,7 +500,7 @@ void AdjustmentHandler::DrawVerts()
 					if (collisionConvexVerticesShape) {
 						// The charcontroller shape is composed of two vertically concentric "rings" with a single point above and below the top/bottom ring.
 						// verts 0,2,6,10,12,14,15,17 are bottom ring, 8-9 are bottom/top points, 1,3,4,5,7,11,13,16 are top ring
-						
+
 						RE::hkArray<RE::hkVector4> verts{};
 						hkpConvexVerticesShape_getOriginalVertices(collisionConvexVerticesShape, verts);
 
@@ -507,7 +565,7 @@ void AdjustmentHandler::DrawVerts()
 
 						pointA += controllerNiPos;
 						pointB += controllerNiPos;
-						
+
 						uint32_t color = 0xFFFF00FF;
 						if (auto bhkShape = capsule->userData) {
 							if (bhkShape->materialID == RE::MATERIAL_ID::kCharacterBumper) {
@@ -548,14 +606,14 @@ void AdjustmentHandler::DrawVerts()
 void AdjustmentHandler::AddControllerToMap(RE::bhkCharacterController* a_controller, RE::ActorHandle a_actorHandle)
 {
 	WriteLocker locker(controllersLock);
-	
+
 	_controllers.emplace(a_controller, std::make_shared<ControllerData>(a_controller, a_actorHandle));
 }
 
 void AdjustmentHandler::RemoveControllerFromMap(RE::bhkCharacterController* a_controller)
 {
 	WriteLocker locker(controllersLock);
-	
+
 	_controllers.erase(a_controller);
 }
 
@@ -594,10 +652,10 @@ bool AdjustmentHandler::CheckSkeletonForCollisionShapes(RE::NiAVObject* a_object
 			}
 		}
 	}
-	
+
 	if (auto node = a_object->AsNode()) {
-		if (node->children.size() > 0) {
-			for (auto& child : node->children) {
+		if (node->GetChildren().size() > 0) {
+			for (auto& child : node->GetChildren()) {
 				if (CheckSkeletonForCollisionShapes(child.get())) {
 					return true;
 				}
