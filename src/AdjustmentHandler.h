@@ -20,16 +20,19 @@ public:
 
 		RE::bhkCharacterController* controller;
 		RE::ActorHandle actorHandle;
-		
+		int bIsProne = 0;
+		int playerProne = false;
+
 		void Initialize();
 		void AdjustScale();
 		void AdjustConvex();
+		void UpdateProneState();
 
 		float actorScale = 1.f;
 		bool bIsSneaking = false;
 		RE::hkpCharacterStateType characterState = RE::hkpCharacterStateType::kOnGround;
 
-		std::vector<RE::hkVector4> originalVerts{};		
+		std::vector<RE::hkVector4> originalVerts{};
 		float originalConvexRadius;
 	};
 
@@ -39,11 +42,13 @@ public:
 		return std::addressof(singleton);
 	}
 
-	void OnPostLoadGame();
+	static void OnPostLoadGame();
 
 	void ActorSneakStateChanged(RE::ActorHandle a_actorHandle, bool a_bIsSneaking);
 	void CharacterControllerStateChanged(RE::bhkCharacterController* a_charController, RE::hkpCharacterStateType a_stateType);
+	void UpdateProneState();
 
+	static bool IsPlayerProne();
 	static bool CheckEnoughSpaceToStand(RE::ActorHandle a_actorHandle);
 
 	void DrawVerts();
@@ -59,9 +64,9 @@ private:
 	using Lock = std::shared_mutex;
 	using ReadLocker = std::shared_lock<Lock>;
 	using WriteLocker = std::unique_lock<Lock>;
-	
+
 	static inline Lock controllersLock;
-	
+
 	AdjustmentHandler() = default;
 	AdjustmentHandler(const AdjustmentHandler&) = delete;
 	AdjustmentHandler(AdjustmentHandler&&) = delete;

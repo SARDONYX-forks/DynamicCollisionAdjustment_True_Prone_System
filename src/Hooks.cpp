@@ -29,7 +29,7 @@ namespace Hooks
 		if (actor) {
 			AdjustmentHandler::GetSingleton()->ActorSneakStateChanged(actor->GetHandle(), true);
 		}
-		
+
 		return ret;
 	}
 
@@ -47,26 +47,27 @@ namespace Hooks
 
 	void SneakHooks::ProcessButton(RE::SneakHandler* a_this, RE::ButtonEvent* a_event, RE::PlayerControlsData* a_data)
 	{
-		auto playerCharacter = RE::PlayerCharacter::GetSingleton();
-		if (playerCharacter && playerCharacter->IsSneaking()) {
-			if (!AdjustmentHandler::CheckEnoughSpaceToStand(playerCharacter->GetHandle())) {
+		const auto player = RE::PlayerCharacter::GetSingleton();
+
+		if (player) {
+			if ((player->IsSneaking() || AdjustmentHandler::IsPlayerProne()) && !AdjustmentHandler::CheckEnoughSpaceToStand(player->GetHandle())) {
 				return;
 			}
 		}
-		
+
 		_ProcessButton(a_this, a_event, a_data);
 	}
 
 	/*bool SneakHooks::CanProcess(RE::SneakHandler* a_this, RE::InputEvent* a_event)
 	{
 		auto playerCharacter = RE::PlayerCharacter::GetSingleton();
-		
+
 		if (playerCharacter && playerCharacter->IsSneaking()) {
 			if (!AdjustmentHandler::CheckEnoughSpaceToStand(playerCharacter->GetHandle())) {
 				return false;
 			}
 		}
-			
+
 		return _CanProcess(a_this, a_event);
 	}*/
 
@@ -74,13 +75,14 @@ namespace Hooks
 	{
 		_Nullsub();
 
+		AdjustmentHandler::GetSingleton()->UpdateProneState();
 		AdjustmentHandler::GetSingleton()->DrawVerts();
 	}
 
 	void CharControllerHooks::bhkCharacterController_dtor_Proxy(RE::bhkCharProxyController* a_this)
 	{
 		AdjustmentHandler::RemoveControllerFromMap(a_this);
-		
+
 		_bhkCharacterController_dtor_Proxy(a_this);
 	}
 
@@ -101,7 +103,8 @@ namespace Hooks
 		uint64_t unk20;
 		RE::NiAVObject* object;
 
-		inline bool CheckFlags() {
+		inline bool CheckFlags()
+		{
 			return (((flags & 0x70000000) - 0x30000000) & 0xEFFFFFFF) == 0;
 		}
 	};
@@ -137,7 +140,7 @@ namespace Hooks
 		if (a_this->wantState != RE::hkpCharacterStateType::kTotal) {
 			AdjustmentHandler::GetSingleton()->CharacterControllerStateChanged(a_this, a_this->wantState);
 		}
-		
+
 		_SetWantedState1(a_this);
 	}
 

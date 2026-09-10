@@ -4,16 +4,59 @@
 
 namespace Utils
 {
-	[[nodiscard]] inline RE::NiPoint3 HkVectorToNiPoint(const RE::hkVector4& vec, bool bConvertScale = false) 
-	{ 
-		RE::NiPoint3 ret = { vec.quad.m128_f32[0], vec.quad.m128_f32[1], vec.quad.m128_f32[2] };
+	[[nodiscard]] inline float GetVec4X(const RE::hkVector4& a_vector) noexcept
+	{
+		return _mm_cvtss_f32(a_vector.quad);
+	}
+
+	[[nodiscard]] inline float GetVec4Y(const RE::hkVector4& a_vector) noexcept
+	{
+		return _mm_cvtss_f32(_mm_shuffle_ps(a_vector.quad, a_vector.quad, _MM_SHUFFLE(1, 1, 1, 1)));
+	}
+
+	[[nodiscard]] inline float GetVec4Z(const RE::hkVector4& a_vector) noexcept
+	{
+		return _mm_cvtss_f32(_mm_shuffle_ps(a_vector.quad, a_vector.quad, _MM_SHUFFLE(2, 2, 2, 2)));
+	}
+
+	[[nodiscard]] inline float GetVec4W(const RE::hkVector4& a_vector) noexcept
+	{
+		return _mm_cvtss_f32(_mm_shuffle_ps(a_vector.quad, a_vector.quad, _MM_SHUFFLE(3, 3, 3, 3)));
+	}
+
+	inline void SetVec4X(RE::hkVector4& a_vector, float a_value) noexcept
+	{
+		a_vector.quad = _mm_move_ss(a_vector.quad, _mm_set_ss(a_value));
+	}
+
+	inline void SetVec4Y(RE::hkVector4& a_vector, float a_value) noexcept
+	{
+		a_vector.quad = _mm_insert_ps(a_vector.quad, _mm_set_ss(a_value), 0x10);
+	}
+
+	inline void SetVec4Z(RE::hkVector4& a_vector, float a_value) noexcept
+	{
+		a_vector.quad = _mm_insert_ps(a_vector.quad, _mm_set_ss(a_value), 0x20);
+	}
+
+	inline void SetVec4W(RE::hkVector4& a_vector, float a_value) noexcept
+	{
+		a_vector.quad = _mm_insert_ps(a_vector.quad, _mm_set_ss(a_value), 0x30);
+	}
+}
+
+namespace Utils
+{
+	[[nodiscard]] inline RE::NiPoint3 HkVectorToNiPoint(const RE::hkVector4& vec, bool bConvertScale = false)
+	{
+		RE::NiPoint3 ret = { GetVec4X(vec.quad), GetVec4Y(vec.quad), GetVec4Z(vec.quad) };
 		if (bConvertScale) {
 			ret *= *g_worldScaleInverse;
 		}
 		return ret;
 	}
-	
-	[[nodiscard]] inline RE::hkVector4 NiPointToHkVector(const RE::NiPoint3& pt, bool bConvertScale = false) 
+
+	[[nodiscard]] inline RE::hkVector4 NiPointToHkVector(const RE::NiPoint3& pt, bool bConvertScale = false)
 	{
 		RE::hkVector4 ret = { pt.x, pt.y, pt.z, 0 };
 		if (bConvertScale) {
